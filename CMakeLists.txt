@@ -1,0 +1,199 @@
+﻿## @brief LibMemorySlot
+## @author Charly Lamothe
+
+
+# --- PROJECT ---
+
+PROJECT(mp C)
+cmake_minimum_required(VERSION 3.8)
+
+
+# --- GLOBAL OPTIONS ---
+
+set(CMAKE_VERBOSE_MAKEFILE on)
+
+# --- PATH ---
+
+set(${CMAKE_CURRENT_SOURCE_DIR} ..)
+set(SRC_PATH "${CMAKE_CURRENT_SOURCE_DIR}/src")
+set(EXAMPLES_PATH "${CMAKE_CURRENT_SOURCE_DIR}/examples")
+set(PLUGIN_EXAMPLES_PATH "${CMAKE_CURRENT_SOURCE_DIR}/plugin_examples")
+
+if (CMAKE_BUILD_TYPE STREQUAL "Release")
+    set(LIBRARY_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/release")
+    set(EXAMPLES_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/release")
+elseif (CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(LIBRARY_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/debug")
+    set(EXAMPLES_OUTPUT_PATH "${CMAKE_CURRENT_SOURCE_DIR}/bin/debug")
+endif ()
+
+# --- COMPILE OPTIONS ---
+
+if (MSVC)
+    # Use secure functions by defaualt and suppress warnings about
+    #"deprecated" functions
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES=1")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D _CRT_SECURE_CPP_OVERLOAD_STANDARD_NAMES_COUNT=1")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /D _CRT_NONSTDC_NO_WARNINGS=1 /D _CRT_SECURE_NO_WARNINGS=1")
+endif ()
+
+if (LINUX)
+	if (NOT CMAKE_BUILD_TYPE STREQUAL "Debug")     ## (not debug)
+		if(CMAKE_COMPILER_IS_GNUCXX)              ## (GNU COMMAND)
+			add_compile_options("-O3")            ### No Optimization
+			set(CMAKE_EXE_LINKER_FLAGS "-s")      ### Strip binary (only in release mode)
+		endif ()
+	else ()
+		add_compile_options("-g")
+	endif ()
+endif ()
+
+if (UNIX)
+    add_compile_options("-std=gnu99" "-pthread" "-ldl")
+	add_compile_options("-Wall" "-pedantic" "-fno-builtin")
+elseif (WIN32)
+    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS ON)
+	set(CMAKE_C_FLAGS "${CMAKE_ENABLE_C99}")
+endif ()
+
+if (WIN32)
+    macro(get_WIN32_WINNT version)
+    if (WIN32 AND CMAKE_SYSTEM_VERSION)
+        set(ver ${CMAKE_SYSTEM_VERSION})
+        string(REPLACE "." "" ver ${ver})
+        string(REGEX REPLACE "([0-9])" "0\\1" ver ${ver})
+        set(${version} "0x${ver}")
+    endif()
+    endmacro()
+    get_WIN32_WINNT(ver)
+    add_definitions(-D_WIN32_WINNT=${ver})
+endif ()
+
+# CCache
+
+find_program(CCACHE_PROGRAM ccache)
+if (CCACHE_PROGRAM)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK "${CCACHE_PROGRAM}")
+endif()
+
+# --- SEARCH LIB ---
+
+# Search pthread
+
+if (UNIX)
+	find_package (Threads)
+endif ()
+
+# Search LibErrorInterceptor
+
+if (WIN32)
+	set(LIBERRORINTERCEPTOR_INCLUDE "C:\\LibErrorInterceptor\\$ENV{name}\\include")
+	set(LIBERRORINTERCEPTOR_LIB "C:\\LibErrorInterceptor\\$ENV{name}\\lib\\ei_static.lib")
+endif ()
+
+# Search LibMemorySlot
+
+if (WIN32)
+	set(LIBMEMORYSLOT_INCLUDE "C:\\LibMemorySlot\\$ENV{name}\\include")
+	set(LIBMEMORYSLOT_LIB "C:\\LibMemorySlot\\$ENV{name}\\lib\\ms_static.lib")
+endif ()
+
+# Search LibSharedMemoryObject
+
+if (WIN32)
+	set(LIBSHAREDMEMORYOBJECT_INCLUDE "C:\\LibSharedMemoryObject\\$ENV{name}\\include")
+	set(LIBSHAREDMEMORYOBJECT_LIB "C:\\LibSharedMemoryObject\\$ENV{name}\\lib\\smo_static.lib")
+endif ()
+
+# --- BUILD LIBMEMORYPLUGIN ---
+
+# Options
+set(PROJECT_NAME_STATIC "${PROJECT_NAME}_static")
+set(PROJECT_NAME_SHARED "${PROJECT_NAME}_shared")
+
+# Load source files
+file(GLOB_RECURSE PROGRAM_TARGET_SRC_FILES "${SRC_PATH}/*.*")
+
+# Build shared library
+add_library(${PROJECT_NAME_SHARED} SHARED ${PROGRAM_TARGET_SRC_FILES})
+target_include_directories(${PROJECT_NAME_SHARED} PUBLIC "${SRC_PATH}")
+set_target_properties(${PROJECT_NAME_SHARED} PROPERTIES OUTPUT_NAME ${PROJECT_NAME})
+target_link_libraries(${PROJECT_NAME_SHARED} ${CMAKE_THREAD_LIBS_INIT})
+if (WIN32)
+	target_include_directories(${PROJECT_NAME_SHARED} PUBLIC "${LIBERRORINTERCEPTOR_INCLUDE}")
+	target_link_libraries(${PROJECT_NAME_SHARED} "${LIBERRORINTERCEPTOR_LIB}")
+	target_include_directories(${PROJECT_NAME_SHARED} PUBLIC "${LIBMEMORYSLOT_INCLUDE}")
+	target_link_libraries(${PROJECT_NAME_SHARED} "${LIBMEMORYSLOT_LIB}")
+	target_include_directories(${PROJECT_NAME_SHARED} PUBLIC "${LIBSHAREDMEMORYOBJECT_INCLUDE}")
+	target_link_libraries(${PROJECT_NAME_SHARED} "${LIBSHAREDMEMORYOBJECT_LIB}")
+endif ()
+
+# Build static library
+add_library(${PROJECT_NAME_STATIC} STATIC ${PROGRAM_TARGET_SRC_FILES})
+target_include_directories(${PROJECT_NAME_STATIC} PUBLIC "${SRC_PATH}")
+set_target_properties(${PROJECT_NAME_STATIC} PROPERTIES OUTPUT_NAME "${PROJECT_NAME}_static")
+target_link_libraries(${PROJECT_NAME_STATIC} ${CMAKE_THREAD_LIBS_INIT})
+if (WIN32)
+	target_include_directories(${PROJECT_NAME_STATIC} PUBLIC "${LIBERRORINTERCEPTOR_INCLUDE}")
+	target_link_libraries(${PROJECT_NAME_STATIC} "${LIBERRORINTERCEPTOR_LIB}")
+	target_include_directories(${PROJECT_NAME_STATIC} PUBLIC "${LIBMEMORYSLOT_INCLUDE}")
+	target_link_libraries(${PROJECT_NAME_STATIC} "${LIBMEMORYSLOT_LIB}")
+	target_include_directories(${PROJECT_NAME_STATIC} PUBLIC "${LIBSHAREDMEMORYOBJECT_INCLUDE}")
+	target_link_libraries(${PROJECT_NAME_STATIC} "${LIBSHAREDMEMORYOBJECT_LIB}")
+endif ()
+
+# --- INSTALL ---
+
+if (UNIX)
+    # Copy includes
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/ DESTINATION /usr/include FILES_MATCHING PATTERN "*.h")
+
+    # Copy static library
+    install (TARGETS ${PROJECT_NAME_STATIC} ARCHIVE DESTINATION "/usr/lib")
+
+    # Copy shared library
+    install (TARGETS ${PROJECT_NAME_SHARED} LIBRARY DESTINATION "/usr/lib")
+elseif (WIN32)
+	# Copy includes
+    install(DIRECTORY ${CMAKE_SOURCE_DIR}/src/ DESTINATION ${CMAKE_INSTALL_PREFIX}/include FILES_MATCHING PATTERN "*.h")
+
+	# Copy static library
+	install (
+		TARGETS ${PROJECT_NAME_STATIC}
+		ARCHIVE DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+		LIBRARY DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+	)
+
+	install (
+		TARGETS ${PROJECT_NAME_SHARED}
+		RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+	)
+endif ()
+
+# Build program examples
+file(GLOB files "${EXAMPLES_PATH}/*.c")
+foreach (filePath ${files} )
+	get_filename_component(executableName ${filePath} NAME_WE)
+	message(STATUS "Build Program : ${executableName}")
+	add_executable(${executableName} ${filePath})
+    target_link_libraries(${executableName} ${PROJECT_NAME_STATIC})
+	if (WIN32)
+		target_include_directories(${executableName} PUBLIC "${LIBERRORINTERCEPTOR_INCLUDE}")
+		target_link_libraries(${executableName} "${LIBERRORINTERCEPTOR_LIB}")
+		target_include_directories(${executableName} PUBLIC "${LIBMEMORYSLOT_INCLUDE}")
+		target_link_libraries(${executableName} "${LIBMEMORYSLOT_LIB}")
+		target_include_directories(${executableName} PUBLIC "${LIBSHAREDMEMORYOBJECT_INCLUDE}")
+		target_link_libraries(${executableName} "${LIBSHAREDMEMORYOBJECT_LIB}")
+	endif ()
+	set_target_properties(${executableName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${EXAMPLES_OUTPUT_PATH})
+endforeach ()
+
+# Build plugin examples
+file(GLOB files "${PLUGIN_EXAMPLES_PATH}/*.c")
+foreach (filePath ${files} )
+	get_filename_component(pluginName ${filePath} NAME_WE)
+	message(STATUS "Build plugin : ${pluginName}")
+	add_library(${pluginName} SHARED ${filePath})
+	set_target_properties(${pluginName} PROPERTIES RUNTIME_OUTPUT_DIRECTORY ${EXAMPLES_OUTPUT_PATH})
+endforeach ()
